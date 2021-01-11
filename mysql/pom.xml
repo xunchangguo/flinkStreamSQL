@@ -17,6 +17,7 @@
         <module>mysql-sink</module>
         <module>mysql-side</module>
         <module>mysql-source</module>
+        <module>mysql-cdc-source</module>
     </modules>
 
     <properties>

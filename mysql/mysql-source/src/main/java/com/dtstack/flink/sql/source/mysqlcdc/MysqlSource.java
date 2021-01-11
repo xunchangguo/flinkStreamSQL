@@ -1,7 +1,7 @@
-package com.dtstack.flink.sql.source.mysql;
+package com.dtstack.flink.sql.source.mysqlcdc;
 
 import com.dtstack.flink.sql.source.IStreamSourceGener;
-import com.dtstack.flink.sql.source.mysql.table.MysqlSourceTableInfo;
+import com.dtstack.flink.sql.source.mysqlcdc.table.MysqlSourceTableInfo;
 import com.dtstack.flink.sql.table.AbstractSourceTableInfo;
 import com.dtstack.flink.sql.util.DataTypeUtils;
 import org.apache.commons.lang3.StringUtils;
