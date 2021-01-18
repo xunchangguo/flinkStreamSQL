@@ -27,6 +27,7 @@ import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.Map;
 
 public class RowDebeziumDeserializeSchema implements DebeziumDeserializationSchema<Row> {
     private static final long serialVersionUID = -4852684966051743776L;
@@ -57,11 +58,14 @@ public class RowDebeziumDeserializeSchema implements DebeziumDeserializationSche
      */
     private final RowDebeziumDeserializeSchema.ValueValidator validator;
 
-    public RowDebeziumDeserializeSchema(RowType rowType, TypeInformation<Row> resultTypeInfo, RowDebeziumDeserializeSchema.ValueValidator validator, ZoneId serverTimeZone) {
+    private final Map<String, String> physicalFields;
+
+    public RowDebeziumDeserializeSchema(RowType rowType, TypeInformation<Row> resultTypeInfo, RowDebeziumDeserializeSchema.ValueValidator validator, ZoneId serverTimeZone, Map<String, String> physicalFields) {
         this.runtimeConverter = createConverter(rowType);
         this.resultTypeInfo = resultTypeInfo;
         this.validator = validator;
         this.serverTimeZone = serverTimeZone;
+        this.physicalFields = physicalFields;
     }
 
     @Override
@@ -335,7 +339,7 @@ public class RowDebeziumDeserializeSchema implements DebeziumDeserializationSche
             int arity = fieldNames.length;
             Row row = new Row(arity);
             for (int i = 0; i < arity ; i++) {
-                String fieldName = fieldNames[i];
+                String fieldName = physicalFields.getOrDefault(fieldNames[i], fieldNames[i]);
                 if(FIELD_OP.equals(fieldName)) {
                     row.setField(i, op.code());
                 } else {

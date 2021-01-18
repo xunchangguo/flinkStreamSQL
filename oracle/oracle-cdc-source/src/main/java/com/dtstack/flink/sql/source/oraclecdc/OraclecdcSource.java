@@ -44,7 +44,8 @@ public class OraclecdcSource implements IStreamSourceGener<Table> {
                 rowType,
                 typeInformation,
                 ((rowData, rowKind) -> {}),
-                ZoneId.of(oracleCdcSourceTableInfo.getServerTimeZone()));
+                ZoneId.of(oracleCdcSourceTableInfo.getServerTimeZone()),
+                oracleCdcSourceTableInfo.getPhysicalFields());
 
         DebeziumSourceFunction<Row> cdcSource = OracleSource.<Row>builder()
                 .hostname(oracleCdcSourceTableInfo.getHostname())
