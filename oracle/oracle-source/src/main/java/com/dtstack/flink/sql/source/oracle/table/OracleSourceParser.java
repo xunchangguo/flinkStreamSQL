@@ -1,4 +1,4 @@
-package com.dtstack.flink.sql.source.mysqlcdc.table;
+package com.dtstack.flink.sql.source.oracle.table;
 
 import com.dtstack.flink.sql.table.AbstractSourceParser;
 import com.dtstack.flink.sql.table.AbstractTableInfo;
@@ -8,8 +8,8 @@ import org.apache.flink.table.descriptors.JdbcValidator;
 
 import java.util.Map;
 
-public class MysqlSourceParser extends AbstractSourceParser {
-    private static final String MYSQL_DRIVER = "com.mysql.jdbc.Driver";
+public class OracleSourceParser extends AbstractSourceParser {
+    private static final String ORACLE_DRIVER = "oracle.jdbc.driver.OracleDriver";
     public static final String URL_KEY = "url";
     public static final String USER_NAME_KEY = "userName";
     public static final String PASSWORD_KEY = "password";
@@ -19,13 +19,13 @@ public class MysqlSourceParser extends AbstractSourceParser {
 
     @Override
     public AbstractTableInfo getTableInfo(String tableName, String fieldsInfo, Map<String, Object> props) throws Exception {
-        MysqlSourceTableInfo mysqlSourceTableInfo = new MysqlSourceTableInfo();
-        parseFieldsInfo(fieldsInfo, mysqlSourceTableInfo);
-        mysqlSourceTableInfo.setName(tableName);
-        mysqlSourceTableInfo.setType(MathUtil.getString(props.get("type")));
+        OracleSourceTableInfo oracleSourceTableInfo = new OracleSourceTableInfo();
+        parseFieldsInfo(fieldsInfo, oracleSourceTableInfo);
+        oracleSourceTableInfo.setName(tableName);
+        oracleSourceTableInfo.setType(MathUtil.getString(props.get("type")));
         JdbcTableSourceSinkFactory jdbcTableSourceSinkFactory = new JdbcTableSourceSinkFactory();
         Map<String, String> properties = jdbcTableSourceSinkFactory.requiredContext();
-        properties.put(JdbcValidator.CONNECTOR_DRIVER, MYSQL_DRIVER);
+        properties.put(JdbcValidator.CONNECTOR_DRIVER, ORACLE_DRIVER);
         props.forEach((key, value) -> {
             if(URL_KEY.equalsIgnoreCase(key)) {
                 properties.put(JdbcValidator.CONNECTOR_URL, String.valueOf(value));
@@ -39,7 +39,7 @@ public class MysqlSourceParser extends AbstractSourceParser {
                 properties.put(key, String.valueOf(value));
             }
         });
-        mysqlSourceTableInfo.setProps(properties);
-        return mysqlSourceTableInfo;
+        oracleSourceTableInfo.setProps(properties);
+        return oracleSourceTableInfo;
     }
 }

@@ -15,6 +15,7 @@
         <module>oracle-side</module>
         <module>oracle-sink</module>
         <module>oracle-cdc-source</module>
+        <module>oracle-source</module>
     </modules>
     <packaging>pom</packaging>
 

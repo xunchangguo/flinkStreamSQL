@@ -1,12 +1,11 @@
-package com.dtstack.flink.sql.source.mysqlcdc;
+package com.dtstack.flink.sql.source.sqlserver;
 
 import com.dtstack.flink.sql.source.IStreamSourceGener;
-import com.dtstack.flink.sql.source.mysqlcdc.table.MysqlSourceTableInfo;
+import com.dtstack.flink.sql.source.sqlserver.table.SqlserverSourceTableInfo;
 import com.dtstack.flink.sql.table.AbstractSourceTableInfo;
 import com.dtstack.flink.sql.util.DataTypeUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.connector.jdbc.table.JdbcTableSourceSinkFactory;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.TableSchema;
@@ -22,25 +21,25 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.stream.IntStream;
 
-public class MysqlSource implements IStreamSourceGener<Table> {
+public class SqlserverSource implements IStreamSourceGener<Table> {
     @Override
     public Table genStreamSource(AbstractSourceTableInfo sourceTableInfo, StreamExecutionEnvironment env, StreamTableEnvironment tableEnv) {
-        MysqlSourceTableInfo mysqlSourceTableInfo = (MysqlSourceTableInfo) sourceTableInfo;
+        SqlserverSourceTableInfo sqlserverSourceTableInfo = (SqlserverSourceTableInfo) sourceTableInfo;
 
-        JdbcTableSourceSinkFactory jdbcTableSourceSinkFactory = new JdbcTableSourceSinkFactory();
-        TableSchema tableSchema = getTableSchema(mysqlSourceTableInfo);
+        SqlserverTableSourceSinkFactory jdbcTableSourceSinkFactory = new SqlserverTableSourceSinkFactory();
+        TableSchema tableSchema = getTableSchema(sqlserverSourceTableInfo);
         DescriptorProperties descriptorProperties = new DescriptorProperties();
         descriptorProperties.putTableSchema("schema", tableSchema);
-        descriptorProperties.putProperties(mysqlSourceTableInfo.getProps());
+        descriptorProperties.putProperties(sqlserverSourceTableInfo.getProps());
 
         StreamTableSource<Row> streamTableSource = jdbcTableSourceSinkFactory.createStreamTableSource(new HashMap<>(descriptorProperties.asMap()));
-        String fields = StringUtils.join(mysqlSourceTableInfo.getFields(), ",");
+        String fields = StringUtils.join(sqlserverSourceTableInfo.getFields(), ",");
         return tableEnv.fromDataStream(streamTableSource.getDataStream(env), fields);
     }
 
-    protected TableSchema getTableSchema(MysqlSourceTableInfo mysqlSourceTableInfo) {
-        String[] fieldTypes = mysqlSourceTableInfo.getFieldTypes();
-        Class<?>[] fieldClasses = mysqlSourceTableInfo.getFieldClasses();
+    protected TableSchema getTableSchema(SqlserverSourceTableInfo sqlserverSourceTableInfo) {
+        String[] fieldTypes = sqlserverSourceTableInfo.getFieldTypes();
+        Class<?>[] fieldClasses = sqlserverSourceTableInfo.getFieldClasses();
         TypeInformation[] types =
                 IntStream.range(0, fieldClasses.length)
                         .mapToObj(i -> {
@@ -51,7 +50,7 @@ public class MysqlSource implements IStreamSourceGener<Table> {
                         })
                         .toArray(TypeInformation[]::new);
 
-        String[] fieldNames = mysqlSourceTableInfo.getFields();
+        String[] fieldNames = sqlserverSourceTableInfo.getFields();
         DataType[] fieldDataTypes = TypeConversions.fromLegacyInfoToDataType(types);
         if (fieldNames.length != fieldDataTypes.length) {
             throw new ValidationException("Number of field names and field data types must be equal.\nNumber of names is " + fieldNames.length + ", number of data types is " + fieldTypes.length + ".\nList of field names: " + Arrays.toString(fieldNames) + "\nList of field data types: " + Arrays.toString(fieldTypes));

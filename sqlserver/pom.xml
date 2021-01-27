@@ -23,6 +23,7 @@
         <module>sqlserver-side</module>
         <module>sqlserver-sink</module>
         <module>sqlserver-cdc-source</module>
+        <module>sqlserver-source</module>
     </modules>
 
     <dependencies>

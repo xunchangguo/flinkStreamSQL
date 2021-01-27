@@ -1,4 +1,4 @@
-package com.dtstack.flink.sql.source.mysqlcdc.table;
+package com.dtstack.flink.sql.source.mysql.table;
 
 import com.dtstack.flink.sql.table.AbstractSourceTableInfo;
 
