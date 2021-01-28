@@ -15,6 +15,7 @@
     <modules>
         <module>clickhouse-side</module>
         <module>clickhouse-sink</module>
+        <module>clickhouse-source</module>
 
     </modules>
 

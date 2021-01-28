@@ -1,11 +1,12 @@
-package com.dtstack.flink.sql.source.oracle;
+package com.dtstack.flink.sql.source.postgresql;
 
 import com.dtstack.flink.sql.source.IStreamSourceGener;
-import com.dtstack.flink.sql.source.oracle.table.OracleSourceTableInfo;
+import com.dtstack.flink.sql.source.postgresql.table.PostgresqlSourceTableInfo;
 import com.dtstack.flink.sql.table.AbstractSourceTableInfo;
 import com.dtstack.flink.sql.util.DataTypeUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.connector.jdbc.table.JdbcTableSourceSinkFactory;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.TableSchema;
@@ -21,25 +22,25 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.stream.IntStream;
 
-public class OracleSource implements IStreamSourceGener<Table> {
+public class PostgresqlSource implements IStreamSourceGener<Table> {
     @Override
     public Table genStreamSource(AbstractSourceTableInfo sourceTableInfo, StreamExecutionEnvironment env, StreamTableEnvironment tableEnv) {
-        OracleSourceTableInfo oracleSourceTableInfo = (OracleSourceTableInfo) sourceTableInfo;
+        PostgresqlSourceTableInfo postgresqlSourceTableInfo = (PostgresqlSourceTableInfo) sourceTableInfo;
 
-        OracleTableSourceSinkFactory jdbcTableSourceSinkFactory = new OracleTableSourceSinkFactory();
-        TableSchema tableSchema = getTableSchema(oracleSourceTableInfo);
+        JdbcTableSourceSinkFactory jdbcTableSourceSinkFactory = new JdbcTableSourceSinkFactory();
+        TableSchema tableSchema = getTableSchema(postgresqlSourceTableInfo);
         DescriptorProperties descriptorProperties = new DescriptorProperties();
         descriptorProperties.putTableSchema("schema", tableSchema);
-        descriptorProperties.putProperties(oracleSourceTableInfo.getProps());
+        descriptorProperties.putProperties(postgresqlSourceTableInfo.getProps());
 
         StreamTableSource<Row> streamTableSource = jdbcTableSourceSinkFactory.createStreamTableSource(new HashMap<>(descriptorProperties.asMap()));
-        String fields = StringUtils.join(oracleSourceTableInfo.getFields(), ",");
+        String fields = StringUtils.join(postgresqlSourceTableInfo.getFields(), ",");
         return tableEnv.fromDataStream(streamTableSource.getDataStream(env), fields);
     }
 
-    protected TableSchema getTableSchema(OracleSourceTableInfo oracleSourceTableInfo) {
-        String[] fieldTypes = oracleSourceTableInfo.getFieldTypes();
-        Class<?>[] fieldClasses = oracleSourceTableInfo.getFieldClasses();
+    protected TableSchema getTableSchema(PostgresqlSourceTableInfo postgresqlSourceTableInfo) {
+        String[] fieldTypes = postgresqlSourceTableInfo.getFieldTypes();
+        Class<?>[] fieldClasses = postgresqlSourceTableInfo.getFieldClasses();
         TypeInformation[] types =
                 IntStream.range(0, fieldClasses.length)
                         .mapToObj(i -> {
@@ -50,7 +51,7 @@ public class OracleSource implements IStreamSourceGener<Table> {
                         })
                         .toArray(TypeInformation[]::new);
 
-        String[] fieldNames = oracleSourceTableInfo.getFields();
+        String[] fieldNames = postgresqlSourceTableInfo.getFields();
         DataType[] fieldDataTypes = TypeConversions.fromLegacyInfoToDataType(types);
         if (fieldNames.length != fieldDataTypes.length) {
             throw new ValidationException("Number of field names and field data types must be equal.\nNumber of names is " + fieldNames.length + ", number of data types is " + fieldTypes.length + ".\nList of field names: " + Arrays.toString(fieldNames) + "\nList of field data types: " + Arrays.toString(fieldTypes));
