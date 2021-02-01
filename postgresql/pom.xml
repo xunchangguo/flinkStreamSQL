@@ -16,6 +16,7 @@
         <module>postgresql-side</module>
         <module>postgresql-sink</module>
         <module>postgresql-source</module>
+        <module>postgresql-cdc-source</module>
     </modules>
     <properties>
         <sql.core.version>1.0-SNAPSHOT</sql.core.version>
