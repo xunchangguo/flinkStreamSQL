@@ -19,6 +19,7 @@
 package com.dtstack.flink.sql.source.kafka;
 
 import com.dtstack.flink.sql.dirtyManager.manager.DirtyDataManager;
+import com.dtstack.flink.sql.format.DebeziumRowDeserializationSchema;
 import com.dtstack.flink.sql.format.DeserializationMetricWrapper;
 import com.dtstack.flink.sql.format.FormatType;
 import com.dtstack.flink.sql.format.dtnest.DtNestRowDeserializationSchema;
@@ -80,6 +81,9 @@ public abstract class AbstractKafkaConsumerFactory {
             deserSchemaBuilder.setFieldDelimiter(kafkaSourceTableInfo.getFieldDelimiter().toCharArray()[0]);
             deserializationSchema = deserSchemaBuilder.build();
 
+        } else if (FormatType.DEBEZIUM.name().equalsIgnoreCase(kafkaSourceTableInfo.getSourceDataType())) {
+            deserializationSchema = new DebeziumRowDeserializationSchema(typeInformation, kafkaSourceTableInfo.getPhysicalFields(),
+                    kafkaSourceTableInfo.getFieldExtraInfoList(), kafkaSourceTableInfo.getCharsetName());
         } else if (FormatType.AVRO.name().equalsIgnoreCase(kafkaSourceTableInfo.getSourceDataType())) {
 
             if (StringUtils.isBlank(kafkaSourceTableInfo.getSchemaString())) {

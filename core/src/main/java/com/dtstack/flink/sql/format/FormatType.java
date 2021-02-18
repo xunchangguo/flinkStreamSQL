@@ -32,5 +32,7 @@ public enum FormatType {
     //Indicates that the data is in avro format
     AVRO,
     //Indicates that the data is in csv format
-    CSV
+    CSV,
+    //Indicates that the data is in debezium format
+    DEBEZIUM
 }

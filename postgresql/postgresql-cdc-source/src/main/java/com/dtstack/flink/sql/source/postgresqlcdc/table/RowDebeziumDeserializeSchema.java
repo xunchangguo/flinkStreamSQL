@@ -31,6 +31,12 @@ import java.time.ZoneId;
 public class RowDebeziumDeserializeSchema implements DebeziumDeserializationSchema<Row> {
     private static final long serialVersionUID = -4852684966051743776L;
     private static final String FIELD_OP = "op";
+    private static final String FIELD_SOURCE_DB = "source_db";
+    private static final String FIELD_STRUCT_DB = "db";
+    private static final String FIELD_SOURCE_SCHEMA = "source_schema";
+    private static final String FIELD_STRUCT_SCHEMA = "schema";
+    private static final String FIELD_SOURCE_TABLE = "source_table";
+    private static final String FIELD_STRUCT_TABLE = "table";
 
     /**
      * Custom validator to validate the row value.
@@ -98,13 +104,15 @@ public class RowDebeziumDeserializeSchema implements DebeziumDeserializationSche
     private Row extractAfterRow(Struct value, Schema valueSchema, Envelope.Operation op) throws Exception {
         Schema afterSchema = valueSchema.field(Envelope.FieldName.AFTER).schema();
         Struct after = value.getStruct(Envelope.FieldName.AFTER);
-        return (Row) runtimeConverter.convert(after, afterSchema, op);
+        Struct source = value.getStruct(Envelope.FieldName.SOURCE);
+        return (Row) runtimeConverter.convert(after, afterSchema, op, source);
     }
 
     private Row extractBeforeRow(Struct value, Schema valueSchema, Envelope.Operation op) throws Exception {
         Schema afterSchema = valueSchema.field(Envelope.FieldName.BEFORE).schema();
         Struct after = value.getStruct(Envelope.FieldName.BEFORE);
-        return (Row) runtimeConverter.convert(after, afterSchema, op);
+        Struct source = value.getStruct(Envelope.FieldName.SOURCE);
+        return (Row) runtimeConverter.convert(after, afterSchema, op, source);
     }
 
     @Override
@@ -121,7 +129,7 @@ public class RowDebeziumDeserializeSchema implements DebeziumDeserializationSche
      */
     @FunctionalInterface
     private interface DeserializationRuntimeConverter extends Serializable {
-        Object convert(Object dbzObj, Schema schema, Envelope.Operation op) throws Exception;
+        Object convert(Object dbzObj, Schema schema, Envelope.Operation op, Struct source) throws Exception;
     }
 
     /**
@@ -137,37 +145,37 @@ public class RowDebeziumDeserializeSchema implements DebeziumDeserializationSche
     private RowDebeziumDeserializeSchema.DeserializationRuntimeConverter createNotNullConverter(LogicalType type) {
         switch (type.getTypeRoot()) {
             case NULL:
-                return (dbzObj, schema, op) -> null;
+                return (dbzObj, schema, op, source) -> null;
             case BOOLEAN:
-                return this::convertToBoolean;
+                return (dbzObj1, schema1, op1, source) -> convertToBoolean(dbzObj1, schema1, op1);
             case TINYINT:
-                return (dbzObj, schema, op) -> Byte.parseByte(dbzObj.toString());
+                return (dbzObj, schema, op, source) -> Byte.parseByte(dbzObj.toString());
             case SMALLINT:
-                return (dbzObj, schema, op) -> Short.parseShort(dbzObj.toString());
+                return (dbzObj, schema, op, source) -> Short.parseShort(dbzObj.toString());
             case INTEGER:
             case INTERVAL_YEAR_MONTH:
-                return this::convertToInt;
+                return (dbzObj1, schema1, op1, source) -> convertToInt(dbzObj1, schema1, op1);
             case BIGINT:
             case INTERVAL_DAY_TIME:
-                return this::convertToLong;
+                return (dbzObj1, schema1, op1, source) -> convertToLong(dbzObj1, schema1, op1);
             case DATE:
-                return this::convertToDate;
+                return (dbzObj, schema, op, source) -> convertToDate(dbzObj, schema, op);
             case TIME_WITHOUT_TIME_ZONE:
-                return this::convertToTime;
+                return (dbzObj, schema, op, source) -> convertToTime(dbzObj, schema, op);
             case TIMESTAMP_WITHOUT_TIME_ZONE:
-                return this::convertToTimestamp;
+                return (dbzObj, schema, op, source) -> convertToTimestamp(dbzObj, schema, op);
             case TIMESTAMP_WITH_LOCAL_TIME_ZONE:
-                return this::convertToLocalTimeZoneTimestamp;
+                return (dbzObj, schema, op, source) -> convertToLocalTimeZoneTimestamp(dbzObj, schema, op);
             case FLOAT:
-                return this::convertToFloat;
+                return (dbzObj, schema, op, source) -> convertToFloat(dbzObj, schema, op);
             case DOUBLE:
-                return this::convertToDouble;
+                return (dbzObj1, schemam, op1, source) -> convertToDouble(dbzObj1, schemam, op1);
             case CHAR:
             case VARCHAR:
-                return this::convertToString;
+                return (dbzObj1, schema1, op1, source) -> convertToString(dbzObj1, schema1, op1);
             case BINARY:
             case VARBINARY:
-                return this::convertToBinary;
+                return (dbzObj, schema, op, source) -> convertToBinary(dbzObj, schema, op);
             case DECIMAL:
                 return createDecimalConverter((DecimalType) type);
             case ROW:
@@ -299,7 +307,7 @@ public class RowDebeziumDeserializeSchema implements DebeziumDeserializationSche
     private RowDebeziumDeserializeSchema.DeserializationRuntimeConverter createDecimalConverter(DecimalType decimalType) {
         final int precision = decimalType.getPrecision();
         final int scale = decimalType.getScale();
-        return (dbzObj, schema, op) -> {
+        return (dbzObj, schema, op, source) -> {
             BigDecimal bigDecimal;
             if (dbzObj instanceof byte[]) {
                 // decimal.handling.mode=precise
@@ -330,18 +338,24 @@ public class RowDebeziumDeserializeSchema implements DebeziumDeserializationSche
                 .toArray(RowDebeziumDeserializeSchema.DeserializationRuntimeConverter[]::new);
         final String[] fieldNames = rowType.getFieldNames().toArray(new String[0]);
 
-        return (dbzObj, schema, op) -> {
+        return (dbzObj, schema, op, source) -> {
             Struct struct = (Struct) dbzObj;
             int arity = fieldNames.length;
             Row row = new Row(arity);
-            for (int i = 0; i < arity ; i++) {
+            for (int i = 0; i < arity; i++) {
                 String fieldName = fieldNames[i];
-                if(FIELD_OP.equals(fieldName)) {
+                if (FIELD_OP.equals(fieldName)) {
                     row.setField(i, op.code());
+                } else if (FIELD_SOURCE_DB.equals(fieldName)) {
+                    row.setField(i, source.get(FIELD_STRUCT_DB));
+                } else if (FIELD_SOURCE_SCHEMA.equals(fieldName)) {
+                    row.setField(i, source.get(FIELD_STRUCT_SCHEMA));
+                } else if (FIELD_SOURCE_TABLE.equals(fieldName)) {
+                    row.setField(i, source.get(FIELD_STRUCT_TABLE));
                 } else {
                     Object fieldValue = struct.get(fieldName);
                     Schema fieldSchema = schema.field(fieldName).schema();
-                    Object convertedField = convertField(fieldConverters[i], fieldValue, fieldSchema, op);
+                    Object convertedField = convertField(fieldConverters[i], fieldValue, fieldSchema, op, source);
                     row.setField(i, convertedField);
                 }
             }
@@ -353,21 +367,22 @@ public class RowDebeziumDeserializeSchema implements DebeziumDeserializationSche
             RowDebeziumDeserializeSchema.DeserializationRuntimeConverter fieldConverter,
             Object fieldValue,
             Schema fieldSchema,
-            Envelope.Operation op) throws Exception {
+            Envelope.Operation op,
+            Struct source) throws Exception {
         if (fieldValue == null) {
             return null;
         } else {
-            return fieldConverter.convert(fieldValue, fieldSchema, op);
+            return fieldConverter.convert(fieldValue, fieldSchema, op, source);
         }
     }
 
     private RowDebeziumDeserializeSchema.DeserializationRuntimeConverter wrapIntoNullableConverter(
             RowDebeziumDeserializeSchema.DeserializationRuntimeConverter converter) {
-        return (dbzObj, schema, op) -> {
+        return (dbzObj, schema, op, source) -> {
             if (dbzObj == null) {
                 return null;
             }
-            return converter.convert(dbzObj, schema, op);
+            return converter.convert(dbzObj, schema, op, source);
         };
     }
 }
