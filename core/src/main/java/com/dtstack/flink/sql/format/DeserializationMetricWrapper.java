@@ -98,6 +98,9 @@ public class DeserializationMetricWrapper extends AbstractDeserializationSchema<
 
     @Override
     public Row deserialize(byte[] message) {
+        if(message == null) {
+            return null;
+        }
         try {
             SampleUtils.samplingSourcePrint(
                 samplingIntervalCount,
