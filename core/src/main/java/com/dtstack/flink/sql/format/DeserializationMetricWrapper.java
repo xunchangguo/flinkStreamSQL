@@ -97,9 +97,6 @@ public class DeserializationMetricWrapper extends AbstractDeserializationSchema<
 
     @Override
     public Row deserialize(byte[] message) throws IOException {
-        if(message == null) {
-            return null;
-        }
         try {
             if (numInRecord.getCount() % dataPrintFrequency == 0) {
                 LOG.info("receive source data:" + new String(message, StandardCharsets.UTF_8));
