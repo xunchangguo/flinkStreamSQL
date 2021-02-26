@@ -56,6 +56,15 @@ public abstract class AbstractKafkaConsumerFactory {
                 DirtyDataManager.newInstance(kafkaSourceTableInfo.getDirtyProperties()));
     }
 
+    protected DeserializationMetricWrapper createDeserializationMetricWrapper(KafkaSourceTableInfo kafkaSourceTableInfo,
+                                                                              TypeInformation<Row> typeInformation,
+                                                                              Calculate calculate, boolean allCollect) {
+        return new KafkaDeserializationMetricWrapper(typeInformation,
+                createDeserializationSchema(kafkaSourceTableInfo, typeInformation),
+                calculate,
+                DirtyDataManager.newInstance(kafkaSourceTableInfo.getDirtyProperties()), allCollect);
+    }
+
     protected DeserializationSchema<Row> createDeserializationSchema(KafkaSourceTableInfo kafkaSourceTableInfo, TypeInformation<Row> typeInformation) {
         DeserializationSchema<Row> deserializationSchema = null;
         if (FormatType.DT_NEST.name().equalsIgnoreCase(kafkaSourceTableInfo.getSourceDataType())) {
@@ -83,7 +92,10 @@ public abstract class AbstractKafkaConsumerFactory {
 
         } else if (FormatType.DEBEZIUM.name().equalsIgnoreCase(kafkaSourceTableInfo.getSourceDataType())) {
             deserializationSchema = new DebeziumRowDeserializationSchema(typeInformation, kafkaSourceTableInfo.getPhysicalFields(),
-                    kafkaSourceTableInfo.getFieldExtraInfoList(), kafkaSourceTableInfo.getCharsetName());
+                    kafkaSourceTableInfo.getFieldExtraInfoList(), kafkaSourceTableInfo.getCharsetName(), false);
+        } else if (FormatType.DEBEZIUM1.name().equalsIgnoreCase(kafkaSourceTableInfo.getSourceDataType())) {
+            deserializationSchema = new DebeziumRowDeserializationSchema(typeInformation, kafkaSourceTableInfo.getPhysicalFields(),
+                    kafkaSourceTableInfo.getFieldExtraInfoList(), kafkaSourceTableInfo.getCharsetName(),true);
         } else if (FormatType.AVRO.name().equalsIgnoreCase(kafkaSourceTableInfo.getSourceDataType())) {
 
             if (StringUtils.isBlank(kafkaSourceTableInfo.getSchemaString())) {

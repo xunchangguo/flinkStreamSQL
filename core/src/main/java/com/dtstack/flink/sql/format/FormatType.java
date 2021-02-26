@@ -34,5 +34,7 @@ public enum FormatType {
     //Indicates that the data is in csv format
     CSV,
     //Indicates that the data is in debezium format
-    DEBEZIUM
+    DEBEZIUM,
+    //Indicates that the data is in debezium format
+    DEBEZIUM1
 }

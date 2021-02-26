@@ -19,6 +19,7 @@
 package com.dtstack.flink.sql.source.kafka;
 
 import com.dtstack.flink.sql.format.DeserializationMetricWrapper;
+import com.dtstack.flink.sql.format.FormatType;
 import com.dtstack.flink.sql.source.kafka.table.KafkaSourceTableInfo;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumerBase;
@@ -45,6 +46,10 @@ public class KafkaConsumerFactory extends AbstractKafkaConsumerFactory implement
 
     @Override
     public FlinkKafkaConsumerBase<Row> createKafkaTableSource(KafkaSourceTableInfo kafkaSourceTableInfo, TypeInformation<Row> typeInformation, Properties props) {
+        boolean allCollect = false;
+        if (FormatType.DEBEZIUM1.name().equalsIgnoreCase(kafkaSourceTableInfo.getSourceDataType())) {
+            allCollect = true;
+        }
         KafkaConsumer kafkaSrc;
         if (kafkaSourceTableInfo.getTopicIsPattern()) {
             DeserializationMetricWrapper deserMetricWrapper = createDeserializationMetricWrapper(kafkaSourceTableInfo, typeInformation, (Calculate & Serializable) (subscriptionState, tp) -> {
@@ -54,7 +59,7 @@ public class KafkaConsumerFactory extends AbstractKafkaConsumerFactory implement
                     LOG.error(e.toString());
                 }
                 return null;
-            });
+            }, allCollect);
             kafkaSrc = new KafkaConsumer(Pattern.compile(kafkaSourceTableInfo.getTopic()), deserMetricWrapper, props);
         } else {
             DeserializationMetricWrapper deserMetricWrapper = createDeserializationMetricWrapper(kafkaSourceTableInfo, typeInformation, (Calculate & Serializable) (subscriptionState, tp) -> {
@@ -64,7 +69,7 @@ public class KafkaConsumerFactory extends AbstractKafkaConsumerFactory implement
                     LOG.error(e.toString());
                 }
                 return null;
-            });
+            }, allCollect);
             kafkaSrc = new KafkaConsumer(kafkaSourceTableInfo.getTopic(), deserMetricWrapper, props);
         }
         return kafkaSrc;

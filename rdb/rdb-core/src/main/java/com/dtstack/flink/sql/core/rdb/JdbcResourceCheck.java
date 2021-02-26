@@ -46,7 +46,7 @@ public class JdbcResourceCheck extends ResourceCheck {
 
     private static final String CHECK_SELECT_SQL = "select 1 from $table where 1=2;";
     private static final String CHECK_DELETE_SQL = "delete from $table where 1=3;";
-    private static final String CHECK_INSERT_SQL = "insert into $table (select * from $table where 1=2);";
+    private static final String CHECK_INSERT_SQL = "insert into $table select * from $table where 1=2;";
 
     private static final Map<String, String> PRIVILEGE_SQL_MAP = new HashMap<>();
     private static final JdbcResourceCheck Instance = new JdbcResourceCheck();

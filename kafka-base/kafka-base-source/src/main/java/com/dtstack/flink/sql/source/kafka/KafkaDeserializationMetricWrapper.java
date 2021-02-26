@@ -27,6 +27,7 @@ import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.streaming.connectors.kafka.internal.KafkaConsumerThread;
 import org.apache.flink.streaming.connectors.kafka.internals.AbstractFetcher;
 import org.apache.flink.types.Row;
+import org.apache.flink.util.Collector;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.internals.SubscriptionState;
 import org.apache.kafka.common.TopicPartition;
@@ -58,6 +59,8 @@ public class KafkaDeserializationMetricWrapper extends DeserializationMetricWrap
 
     private Calculate calculate;
 
+    private boolean allCollect = false;
+
     public KafkaDeserializationMetricWrapper(
             TypeInformation<Row> typeInfo
             , DeserializationSchema<Row> deserializationSchema
@@ -65,6 +68,16 @@ public class KafkaDeserializationMetricWrapper extends DeserializationMetricWrap
             , DirtyDataManager dirtyDataManager) {
         super(typeInfo, deserializationSchema, dirtyDataManager);
         this.calculate = calculate;
+    }
+
+    public KafkaDeserializationMetricWrapper(
+            TypeInformation<Row> typeInfo
+            , DeserializationSchema<Row> deserializationSchema
+            , Calculate calculate
+            , DirtyDataManager dirtyDataManager, boolean allCollect) {
+        super(typeInfo, deserializationSchema, dirtyDataManager);
+        this.calculate = calculate;
+        this.allCollect = allCollect;
     }
 
     @Override
@@ -76,6 +89,15 @@ public class KafkaDeserializationMetricWrapper extends DeserializationMetricWrap
             } catch (Exception e) {
                 LOG.error("register topic partition metric error.", e);
             }
+        }
+    }
+
+    @Override
+    public void deserialize(byte[] message, Collector<Row> out) throws IOException {
+        if(allCollect) {
+            getDeserializationSchema().deserialize(message, out);
+        } else {
+            super.deserialize(message, out);
         }
     }
 

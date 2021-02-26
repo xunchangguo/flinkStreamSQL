@@ -196,6 +196,7 @@ public class ExecuteProcessHelper {
         try {
             sqlTree = SqlParser.parseSql(paramsInfo.getSql(), paramsInfo.getPluginLoadMode(), planner);
         } catch (Exception e) {
+            e.printStackTrace();
             nativeStmt = true;
         }
         if (nativeStmt) {
