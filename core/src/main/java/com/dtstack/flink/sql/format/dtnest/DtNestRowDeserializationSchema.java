@@ -136,6 +136,9 @@ public class DtNestRowDeserializationSchema extends AbstractDeserializationSchem
     }
 
     private Object convert(JsonNode node, TypeInformation<?> info) {
+        if(node.isNull()) {
+            return null;
+        }
         if (info.getTypeClass().equals(Types.BOOLEAN.getTypeClass())) {
             return node.asBoolean();
         } else if (info.getTypeClass().equals(Types.STRING.getTypeClass())) {
