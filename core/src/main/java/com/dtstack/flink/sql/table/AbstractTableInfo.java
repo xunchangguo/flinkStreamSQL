@@ -21,7 +21,6 @@ package com.dtstack.flink.sql.table;
 import com.dtstack.flink.sql.dirtyManager.manager.DirtyKeys;
 import com.dtstack.flink.sql.outputformat.AbstractDtRichOutputFormat;
 import com.dtstack.flink.sql.side.AbstractSideTableInfo;
-
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
@@ -29,7 +28,6 @@ import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Properties;
 
 /**
  * Reason:
@@ -43,6 +41,9 @@ public abstract class AbstractTableInfo implements Serializable {
 
     public static final String PARALLELISM_KEY = "parallelism";
     public static final String ERROR_LIMIT = "errorLimit";
+    public static final Boolean DEFAULT_FALSE = false;
+    public static final Boolean DEFAULT_TRUE = true;
+    public static final Object DEFAULT_NULL = null;
     private final List<String> fieldList = Lists.newArrayList();
     private final List<String> fieldTypeList = Lists.newArrayList();
     private final List<Class> fieldClassList = Lists.newArrayList();

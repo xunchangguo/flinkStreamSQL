@@ -109,7 +109,7 @@ public class JdbcResourceCheck extends ResourceCheck {
             , String schema
             , List<String> privilegeList) {
         Connection connection =
-                JdbcConnectionUtil.getConnectWithRetry(driverName, url, userName, password);
+                JdbcConnectionUtil.getConnectionWithRetry(driverName, url, userName, password);
         Statement statement = null;
         String tableInfo = Objects.isNull(schema) ? tableName : schema + "." + tableName;
         String privilege = null;

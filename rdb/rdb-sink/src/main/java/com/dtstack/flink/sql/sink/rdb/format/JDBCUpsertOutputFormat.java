@@ -135,7 +135,7 @@ public class JDBCUpsertOutputFormat extends AbstractJDBCOutputFormat<Tuple2<Bool
 
     public void openJdbc() throws IOException {
         try {
-            connection = JdbcConnectionUtil.getConnectWithRetry(
+            connection = JdbcConnectionUtil.getConnectionWithRetry(
                 driverName,
                 dbURL,
                 username,
@@ -194,7 +194,7 @@ public class JDBCUpsertOutputFormat extends AbstractJDBCOutputFormat<Tuple2<Bool
         try {
             if (!connection.isValid(10)) {
                 LOG.info("db connection reconnect..");
-                connection = JdbcConnectionUtil.getConnectWithRetry(
+                connection = JdbcConnectionUtil.getConnectionWithRetry(
                     driverName,
                     dbURL,
                     username,

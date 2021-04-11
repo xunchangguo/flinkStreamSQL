@@ -138,8 +138,7 @@ public class ExecuteProcessHelper {
         }
 
         if (!pluginLoadMode.equalsIgnoreCase(EPluginLoadMode.LOCALTEST.name()) && Objects.isNull(dirtyProperties.get(PLUGIN_PATH_STR))) {
-            dirtyProperties.put(PLUGIN_PATH_STR,
-                    Objects.isNull(remoteSqlPluginPath) ? localSqlPluginPath : remoteSqlPluginPath);
+            dirtyProperties.put(PLUGIN_PATH_STR, localSqlPluginPath);
         }
 
         List<URL> jarUrlList = getExternalJarUrls(options.getAddjar());
@@ -179,7 +178,7 @@ public class ExecuteProcessHelper {
         StreamExecutionEnvironment env = ExecuteProcessHelper.getStreamExeEnv(paramsInfo.getConfProp(), paramsInfo.getDeployMode());
         StreamTableEnvironment tableEnv = getStreamTableEnv(env, paramsInfo.getConfProp());
 
-        ResourceCheck.NEED_CHECK = Boolean.parseBoolean(paramsInfo.getConfProp().getProperty(ResourceCheck.CHECK_STR, "true"));
+        ResourceCheck.NEED_CHECK = Boolean.parseBoolean(paramsInfo.getConfProp().getProperty(ResourceCheck.CHECK_STR, "false"));
 
         SqlParser.setLocalSqlPluginRoot(paramsInfo.getLocalSqlPluginPath());
         SqlTree sqlTree = SqlParser.parseSql(paramsInfo.getSql(), paramsInfo.getPluginLoadMode());

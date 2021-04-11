@@ -39,7 +39,9 @@
         <module>oceanbase</module>
         <module>tidb</module>
         <module>kingbase</module>
-<!--        <module>aws</module>-->
+        <module>aws</module>
+        <module>file</module>
+        <module>http</module>
 
         <!-- 脏数据插件 -->
         <module>dirtyData</module>

@@ -119,7 +119,7 @@ public class JdbcConnectionUtil {
     }
 
     /**
-     * get connect from datasource and retry when failed.
+     * get connection from datasource and retry when failed.
      *
      * @param driverName driver name for rdb datasource
      * @param url        connect url
@@ -127,15 +127,16 @@ public class JdbcConnectionUtil {
      * @param password   password for user name
      * @return a valid connection
      */
-    public static Connection getConnectWithRetry(
-            String driverName
-            , String url
-            , String userName
-            , String password) {
-        String errorMessage = "\nGet connect failed with properties: \nurl: " + url
-                + (Objects.isNull(userName) ? "" : "\nuserName: " + userName
-                + "\nerror message: ");
-        String errorCause = null;
+    public static Connection getConnectionWithRetry(String driverName,
+                                                    String url,
+                                                    String userName,
+                                                    String password) {
+        String message = "Get connection failed. " +
+            "\nurl: [%s]" +
+            "\nuserName: [%s]" +
+            "\ncause: [%s]";
+        String errorCause;
+        String errorMessage = "";
 
         ClassLoaderManager.forName(driverName, JdbcConnectionUtil.class.getClassLoader());
         Preconditions.checkNotNull(url, "url can't be null!");
@@ -150,11 +151,17 @@ public class JdbcConnectionUtil {
                 return connection;
             } catch (Exception e) {
                 errorCause = ExceptionTrace.traceOriginalCause(e);
-                LOG.warn(errorMessage + errorCause);
+                errorMessage = String.format(
+                    message,
+                    url,
+                    userName,
+                    errorCause
+                );
+                LOG.warn(errorMessage);
                 LOG.warn("Connect will retry after [{}] s. Retry time [{}] ...", DEFAULT_RETRY_TIME_WAIT, i + 1);
                 ThreadUtil.sleepSeconds(DEFAULT_RETRY_TIME_WAIT);
             }
         }
-        throw new SuppressRestartsException(new SQLException(errorMessage + errorCause));
+        throw new SuppressRestartsException(new SQLException(errorMessage));
     }
 }
