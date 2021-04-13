@@ -19,38 +19,28 @@
 package com.dtstack.flink.sql.exec;
 
 import com.dtstack.flink.sql.classloader.ClassLoaderManager;
-import com.dtstack.flink.sql.classloader.DtClassLoader;
 import com.dtstack.flink.sql.dirtyManager.manager.DirtyDataManager;
+import com.dtstack.flink.sql.dirtyManager.manager.DirtyKeys;
 import com.dtstack.flink.sql.enums.ClusterMode;
 import com.dtstack.flink.sql.enums.ECacheType;
 import com.dtstack.flink.sql.enums.EPluginLoadMode;
-import com.dtstack.flink.sql.enums.PlannerType;
 import com.dtstack.flink.sql.environment.MyLocalStreamEnvironment;
 import com.dtstack.flink.sql.environment.StreamEnvConfigManager;
 import com.dtstack.flink.sql.function.FunctionManager;
 import com.dtstack.flink.sql.option.OptionParser;
 import com.dtstack.flink.sql.option.Options;
-import com.dtstack.flink.sql.parser.CreateFuncParser;
-import com.dtstack.flink.sql.parser.CreateTmpTableParser;
-import com.dtstack.flink.sql.parser.FlinkPlanner;
-import com.dtstack.flink.sql.parser.InsertSqlParser;
-import com.dtstack.flink.sql.parser.SqlParser;
-import com.dtstack.flink.sql.parser.SqlTree;
-import com.dtstack.flink.sql.parser.SqlCommandParser;
+import com.dtstack.flink.sql.parser.*;
 import com.dtstack.flink.sql.resource.ResourceCheck;
 import com.dtstack.flink.sql.side.AbstractSideTableInfo;
 import com.dtstack.flink.sql.side.SideSqlExec;
-import com.dtstack.flink.sql.side.table.LookupTableSourceFactory;
 import com.dtstack.flink.sql.sink.StreamSinkFactory;
 import com.dtstack.flink.sql.source.StreamSourceFactory;
 import com.dtstack.flink.sql.table.AbstractSourceTableInfo;
 import com.dtstack.flink.sql.table.AbstractTableInfo;
 import com.dtstack.flink.sql.table.AbstractTargetTableInfo;
-import com.dtstack.flink.sql.util.DataTypeUtils;
 import com.dtstack.flink.sql.util.DtStringUtil;
 import com.dtstack.flink.sql.util.PluginUtil;
-import com.dtstack.flink.sql.util.SampleUtils;
-import com.dtstack.flink.sql.util.SqlFormatterUtil;
+import com.dtstack.flink.sql.util.TypeInfoDataTypeConverter;
 import com.dtstack.flink.sql.watermarker.WaterMarkerAssigner;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Preconditions;
@@ -61,9 +51,9 @@ import com.google.common.collect.Sets;
 import org.apache.calcite.sql.SqlInsert;
 import org.apache.calcite.sql.SqlNode;
 import org.apache.commons.io.Charsets;
+import org.apache.commons.lang3.SerializationUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.typeutils.RowTypeInfo;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -71,11 +61,10 @@ import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.TableConfig;
 import org.apache.flink.table.api.TableEnvironment;
-import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
-import org.apache.flink.table.api.bridge.java.internal.StreamTableEnvironmentImpl;
+import org.apache.flink.table.api.java.StreamTableEnvironment;
+import org.apache.flink.table.api.java.internal.StreamTableEnvironmentImpl;
 import org.apache.flink.table.sinks.TableSink;
-import org.apache.flink.table.sources.TableSource;
-import org.apache.flink.types.Row;
+import org.apache.flink.table.types.DataType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -86,10 +75,7 @@ import java.net.URLClassLoader;
 import java.net.URLDecoder;
 import java.time.ZoneId;
 import java.util.*;
-
-import static com.dtstack.flink.sql.constrant.ConfigConstrant.SAMPLE_INTERVAL_COUNT;
-
-import static com.dtstack.flink.sql.constrant.ConfigConstrant.SAMPLE_INTERVAL_COUNT;
+import java.util.stream.Stream;
 
 /**
  * 任务执行时的流程方法
@@ -110,6 +96,7 @@ public class ExecuteProcessHelper {
 
     public static FlinkPlanner flinkPlanner = new FlinkPlanner();
 
+    @SuppressWarnings("unchecked")
     public static ParamsInfo parseParams(String[] args) throws Exception {
         LOG.info("------------program params-------------------------");
         Arrays.stream(args).forEach(arg -> LOG.info("{}", arg));
@@ -124,23 +111,21 @@ public class ExecuteProcessHelper {
         String remoteSqlPluginPath = options.getRemoteSqlPluginPath();
         String pluginLoadMode = options.getPluginLoadMode();
         String deployMode = options.getMode();
-        String planner = options.getPlanner();
         String dirtyStr = options.getDirtyProperties();
 
         Preconditions.checkArgument(checkRemoteSqlPluginPath(remoteSqlPluginPath, deployMode, pluginLoadMode),
                 "Non-local mode or shipfile deployment mode, remoteSqlPluginPath is required");
         String confProp = URLDecoder.decode(options.getConfProp(), Charsets.UTF_8.toString());
         Properties confProperties = PluginUtil.jsonStrToObject(confProp, Properties.class);
-        Properties dirtyProperties = PluginUtil.jsonStrToObject(Objects.isNull(dirtyStr) ?
-                DirtyDataManager.buildDefaultDirty() : dirtyStr, Properties.class);
+        Map<String, Object> dirtyProperties = (Map<String, Object>) PluginUtil.jsonStrToObject(Objects.isNull(dirtyStr) ?
+                DirtyDataManager.buildDefaultDirty() : dirtyStr, Map.class);
 
-        if (Objects.isNull(dirtyProperties.getProperty(PLUGIN_LOAD_STR))) {
+        if (Objects.isNull(dirtyProperties.get(PLUGIN_LOAD_STR))) {
             dirtyProperties.put(PLUGIN_LOAD_STR, pluginLoadMode);
         }
 
-        if (!pluginLoadMode.equalsIgnoreCase(EPluginLoadMode.LOCALTEST.name()) && Objects.isNull(dirtyProperties.getProperty(PLUGIN_PATH_STR))) {
-            dirtyProperties.setProperty(PLUGIN_PATH_STR,
-                    Objects.isNull(remoteSqlPluginPath) ? localSqlPluginPath : remoteSqlPluginPath);
+        if (!pluginLoadMode.equalsIgnoreCase(EPluginLoadMode.LOCALTEST.name()) && Objects.isNull(dirtyProperties.get(PLUGIN_PATH_STR))) {
+            dirtyProperties.put(PLUGIN_PATH_STR, localSqlPluginPath);
         }
 
         List<URL> jarUrlList = getExternalJarUrls(options.getAddjar());
@@ -153,7 +138,6 @@ public class ExecuteProcessHelper {
                 .setPluginLoadMode(pluginLoadMode)
                 .setDeployMode(deployMode)
                 .setConfProp(confProperties)
-                .setPlanner(planner)
                 .setJarUrlList(jarUrlList)
                 .setDirtyProperties(dirtyProperties)
                 .build();
@@ -176,32 +160,25 @@ public class ExecuteProcessHelper {
         return true;
     }
 
-    public static StreamTableEnvironment getStreamExecution(ParamsInfo paramsInfo) throws Exception {
 
-        ClassLoader envClassLoader = Thread.currentThread().getContextClassLoader();
-        ClassLoader plannerClassLoader = new DtClassLoader(new URL[0], envClassLoader);
-        Thread.currentThread().setContextClassLoader(plannerClassLoader);
-
+    public static StreamExecutionEnvironment getStreamExecution(ParamsInfo paramsInfo) throws Exception {
         StreamExecutionEnvironment env = ExecuteProcessHelper.getStreamExeEnv(paramsInfo.getConfProp(), paramsInfo.getDeployMode());
         StreamTableEnvironment tableEnv = getStreamTableEnv(env, paramsInfo.getConfProp());
 
-        setSamplingIntervalCount(paramsInfo);
-        ResourceCheck.NEED_CHECK = Boolean.parseBoolean(paramsInfo.getConfProp().getProperty(ResourceCheck.CHECK_STR, "true"));
+        ResourceCheck.NEED_CHECK = Boolean.parseBoolean(paramsInfo.getConfProp().getProperty(ResourceCheck.CHECK_STR, "false"));
 
-        String planner = paramsInfo.getPlanner();
         SqlParser.setLocalSqlPluginRoot(paramsInfo.getLocalSqlPluginPath());
-
+        //SqlTree sqlTree = SqlParser.parseSql(paramsInfo.getSql(), paramsInfo.getPluginLoadMode());
         boolean nativeStmt = false;
         SqlTree sqlTree = null;
         try {
-            sqlTree = SqlParser.parseSql(paramsInfo.getSql(), paramsInfo.getPluginLoadMode(), planner);
+            sqlTree = SqlParser.parseSql(paramsInfo.getSql(), paramsInfo.getPluginLoadMode());
         } catch (Exception e) {
-            e.printStackTrace();
             nativeStmt = true;
         }
         if (nativeStmt) {
             String sql = paramsInfo.getSql();
-            if (StringUtils.isBlank(sql)) {
+            if(StringUtils.isBlank(sql)){
                 throw new RuntimeException("sql is not null");
             }
 
@@ -214,13 +191,13 @@ public class ExecuteProcessHelper {
             sqlArr = SqlParser.removeAddFileAndJarStmt(sqlArr);
 
             SqlCommandParser sqlCommandParser = new SqlCommandParser();
-            for (String childSql : sqlArr) {
-                if (Strings.isNullOrEmpty(childSql)) {
+            for(String childSql : sqlArr){
+                if(Strings.isNullOrEmpty(childSql)){
                     continue;
                 }
                 childSql = childSql.trim();
                 Optional<SqlCommandParser.SqlCommandCall> result = sqlCommandParser.parse(childSql);
-                if (result.isPresent()) {
+                if(result.isPresent()) {
                     SqlCommandParser.SqlCommandCall sqlCommandCall = result.get();
                     switch (sqlCommandCall.command) {
                         case CREATE_TABLE:
@@ -233,6 +210,7 @@ public class ExecuteProcessHelper {
                 }
             }
         } else {
+
             Map<String, AbstractSideTableInfo> sideTableMap = Maps.newHashMap();
             Map<String, Table> registerTableCache = Maps.newHashMap();
 
@@ -248,34 +226,25 @@ public class ExecuteProcessHelper {
                     , paramsInfo.getPluginLoadMode()
                     , paramsInfo.getDirtyProperties()
                     , sideTableMap
-                    , registerTableCache
-                    , planner);
+                    , registerTableCache);
             // cache classPathSets
             ExecuteProcessHelper.registerPluginUrlToCachedFile(env, classPathSets);
 
             ExecuteProcessHelper.sqlTranslation(
-                    paramsInfo.getLocalSqlPluginPath()
-                    , paramsInfo.getPluginLoadMode()
-                    , tableEnv
-                    , sqlTree
-                    , sideTableMap
-                    , registerTableCache
-                    , planner);
+                    paramsInfo.getLocalSqlPluginPath(),
+                    paramsInfo.getPluginLoadMode(),
+                    tableEnv,
+                    sqlTree,
+                    sideTableMap,
+                    registerTableCache);
         }
         if (env instanceof MyLocalStreamEnvironment) {
             ((MyLocalStreamEnvironment) env).setClasspaths(ClassLoaderManager.getClassPath());
         }
-        return tableEnv;
+        return env;
     }
 
-    private static void setSamplingIntervalCount(ParamsInfo paramsInfo) {
-        SampleUtils.setSamplingIntervalCount(
-            Integer.parseInt(
-                paramsInfo.getConfProp().getProperty(SAMPLE_INTERVAL_COUNT, "0")
-            )
-        );
-    }
-
+    @SuppressWarnings("unchecked")
     public static List<URL> getExternalJarUrls(String addJarListStr) throws java.io.IOException {
         List<URL> jarUrlList = Lists.newArrayList();
         if (Strings.isNullOrEmpty(addJarListStr)) {
@@ -293,90 +262,72 @@ public class ExecuteProcessHelper {
     private static void sqlTranslation(String localSqlPluginPath,
                                        String pluginLoadMode,
                                        StreamTableEnvironment tableEnv,
-                                       SqlTree sqlTree, Map<String, AbstractSideTableInfo> sideTableMap,
-                                       Map<String, Table> registerTableCache,
-                                       String planner) throws Exception {
+                                       SqlTree sqlTree,
+                                       Map<String, AbstractSideTableInfo> sideTableMap,
+                                       Map<String, Table> registerTableCache) throws Exception {
 
-        if (planner.equalsIgnoreCase(PlannerType.FLINK.name())) {
-            for (CreateTmpTableParser.SqlParserResult view : sqlTree.getTmpSqlList()) {
-                if (LOG.isInfoEnabled()) {
-                    LOG.info("view-sql:\n" + SqlFormatterUtil.format(view.getExecSql()));
-                }
-                tableEnv.sqlUpdate(view.getExecSql());
+        SideSqlExec sideSqlExec = new SideSqlExec();
+        sideSqlExec.setLocalSqlPluginPath(localSqlPluginPath);
+        sideSqlExec.setPluginLoadMode(pluginLoadMode);
+
+        int scope = 0;
+        for (CreateTmpTableParser.SqlParserResult result : sqlTree.getTmpSqlList()) {
+            sideSqlExec.exec(result.getExecSql(), sideTableMap, tableEnv, registerTableCache, result, scope + "");
+            scope++;
+        }
+
+        final Map<String, AbstractSideTableInfo> tmpTableMap = new HashMap<>();
+        for (InsertSqlParser.SqlParseResult result : sqlTree.getExecSqlList()) {
+            // prevent current sql use last sql's sideTableInfo
+            sideTableMap.forEach((s, abstractSideTableInfo) -> tmpTableMap.put(s, SerializationUtils.clone(abstractSideTableInfo)));
+
+            if (LOG.isInfoEnabled()) {
+                LOG.info("exe-sql:\n" + result.getExecSql());
             }
-            for (InsertSqlParser.SqlParseResult result : sqlTree.getExecSqlList()) {
-                if (LOG.isInfoEnabled()) {
-                    LOG.info("exe-sql:\n" + SqlFormatterUtil.format(result.getExecSql()));
-                }
-                FlinkSQLExec.sqlUpdate(tableEnv, result.getExecSql());
-            }
-        } else {
-            SideSqlExec sideSqlExec = new SideSqlExec();
-            sideSqlExec.setLocalSqlPluginPath(localSqlPluginPath);
-            sideSqlExec.setPluginLoadMode(pluginLoadMode);
+            boolean isSide = false;
+            for (String tableName : result.getTargetTableList()) {
+                if (sqlTree.getTmpTableMap().containsKey(tableName)) {
+                    CreateTmpTableParser.SqlParserResult tmp = sqlTree.getTmpTableMap().get(tableName);
+                    String realSql = DtStringUtil.replaceIgnoreQuota(result.getExecSql(), "`", "");
 
-            int scope = 0;
-            for (CreateTmpTableParser.SqlParserResult result : sqlTree.getTmpSqlList()) {
-                sideSqlExec.exec(result.getExecSql(), sideTableMap, tableEnv, registerTableCache, result, scope + "");
-                scope++;
-            }
-
-            for (InsertSqlParser.SqlParseResult result : sqlTree.getExecSqlList()) {
-                if (LOG.isInfoEnabled()) {
-                    LOG.info("exe-sql:\n" + SqlFormatterUtil.format(result.getExecSql()));
-                }
-                boolean isSide = false;
-                for (String tableName : result.getTargetTableList()) {
-                    if (sqlTree.getTmpTableMap().containsKey(tableName)) {
-                        CreateTmpTableParser.SqlParserResult tmp = sqlTree.getTmpTableMap().get(tableName);
-                        String realSql = DtStringUtil.replaceIgnoreQuota(result.getExecSql(), "`", "");
-
-                        SqlNode sqlNode = flinkPlanner.getParser().parse(realSql);
-                        String tmpSql = ((SqlInsert) sqlNode).getSource().toString();
-                        tmp.setExecSql(tmpSql);
-                        sideSqlExec.exec(tmp.getExecSql(), sideTableMap, tableEnv, registerTableCache, tmp, scope + "");
-                    } else {
-                        for (String sourceTable : result.getSourceTableList()) {
-                            if (sideTableMap.containsKey(sourceTable)) {
-                                isSide = true;
-                                break;
-                            }
-                        }
-                        if (isSide) {
-                            //sql-dimensional table contains the dimension table of execution
-                            sideSqlExec.exec(result.getExecSql(), sideTableMap, tableEnv, registerTableCache, null, String.valueOf(scope));
-                        } else {
-                            LOG.info("----------exec sql without dimension join-----------");
-                            LOG.info("----------real sql exec is--------------------------\n{}", SqlFormatterUtil.format(result.getExecSql()));
-                            FlinkSQLExec.sqlUpdate(tableEnv, result.getExecSql());
-                            if (LOG.isInfoEnabled()) {
-                                LOG.info("exec sql: " + SqlFormatterUtil.format(result.getExecSql()));
-                            }
+                    SqlNode sqlNode = flinkPlanner.getParser().parse(realSql);
+                    String tmpSql = ((SqlInsert) sqlNode).getSource().toString();
+                    tmp.setExecSql(tmpSql);
+                    sideSqlExec.exec(tmp.getExecSql(), tmpTableMap, tableEnv, registerTableCache, tmp, scope + "");
+                } else {
+                    for (String sourceTable : result.getSourceTableList()) {
+                        if (tmpTableMap.containsKey(sourceTable)) {
+                            isSide = true;
+                            break;
                         }
                     }
-                    scope++;
+                    if (isSide) {
+                        //sql-dimensional table contains the dimension table of execution
+                        sideSqlExec.exec(result.getExecSql(), tmpTableMap, tableEnv, registerTableCache, null, String.valueOf(scope));
+                    } else {
+                        LOG.info("----------exec sql without dimension join-----------");
+                        LOG.info("----------real sql exec is--------------------------\n{}", result.getExecSql());
+
+                        FlinkSQLExec.sqlInsert(tableEnv, result.getExecSql(), SideSqlExec.getDimTableNewTable().keySet() );
+                        if (LOG.isInfoEnabled()) {
+                            LOG.info("exec sql: " + result.getExecSql());
+                        }
+                    }
                 }
+
+                scope++;
             }
+            tmpTableMap.clear();
         }
     }
 
     public static void registerUserDefinedFunction(SqlTree sqlTree, List<URL> jarUrlList, TableEnvironment tableEnv, boolean getPlan)
             throws IllegalAccessException, InvocationTargetException {
         // udf和tableEnv须由同一个类加载器加载
-        ClassLoader levelClassLoader = tableEnv.getClass().getClassLoader();
         ClassLoader currentClassLoader = Thread.currentThread().getContextClassLoader();
-        URLClassLoader classLoader = null;
+        URLClassLoader classLoader = ClassLoaderManager.loadExtraJar(jarUrlList, (URLClassLoader) currentClassLoader);
         List<CreateFuncParser.SqlParserResult> funcList = sqlTree.getFunctionList();
         for (CreateFuncParser.SqlParserResult funcInfo : funcList) {
-            // 构建plan的情况下，udf和tableEnv不需要是同一个类加载器
-            if (getPlan) {
-                classLoader = ClassLoaderManager.loadExtraJar(jarUrlList, (URLClassLoader) currentClassLoader);
-            }
-
-            //classloader
-            if (classLoader == null) {
-                classLoader = ClassLoaderManager.loadExtraJar(jarUrlList, (URLClassLoader) levelClassLoader);
-            }
             FunctionManager.registerUDF(funcInfo.getType(), funcInfo.getClassName(), funcInfo.getName(), tableEnv, classLoader);
         }
     }
@@ -402,10 +353,9 @@ public class ExecuteProcessHelper {
             , String localSqlPluginPath
             , String remoteSqlPluginPath
             , String pluginLoadMode
-            , Properties dirtyProperties
+            , Map<String, Object> dirtyProperties
             , Map<String, AbstractSideTableInfo> sideTableMap
             , Map<String, Table> registerTableCache
-            , String planner
     ) throws Exception {
         Set<URL> pluginClassPathSets = Sets.newHashSet();
         WaterMarkerAssigner waterMarkerAssigner = new WaterMarkerAssigner();
@@ -424,34 +374,26 @@ public class ExecuteProcessHelper {
                 String adaptSql = sourceTableInfo.getAdaptSelectSql();
                 Table adaptTable = adaptSql == null ? table : tableEnv.sqlQuery(adaptSql);
 
-                RowTypeInfo typeInfo = new RowTypeInfo(adaptTable.getSchema().getFieldTypes(), adaptTable.getSchema().getFieldNames());
-                DataStream adaptStream = tableEnv.toRetractStream(adaptTable, typeInfo)
-                        .map((Tuple2<Boolean, Row> f0) -> f0.f1)
-                        .returns(typeInfo);
+                RowTypeInfo typeInfo = new RowTypeInfo(fromDataTypeToLegacyInfo(adaptTable.getSchema().getFieldDataTypes()), adaptTable.getSchema().getFieldNames());
+                DataStream adaptStream = tableEnv.toAppendStream(adaptTable, typeInfo);
 
                 String fields = String.join(",", typeInfo.getFieldNames());
 
                 if (waterMarkerAssigner.checkNeedAssignWaterMarker(sourceTableInfo)) {
                     adaptStream = waterMarkerAssigner.assignWaterMarker(adaptStream, typeInfo, sourceTableInfo);
                     fields += ",ROWTIME.ROWTIME";
-                    fields += ",PROCTIME.PROCTIME";
                 } else {
                     fields += ",PROCTIME.PROCTIME";
                 }
 
                 Table regTable = tableEnv.fromDataStream(adaptStream, fields);
-                tableEnv.registerTable(tableInfo.getName(), regTable);
+                tableEnv.createTemporaryView(tableInfo.getName(), regTable);
                 if (LOG.isInfoEnabled()) {
                     LOG.info("registe table {} success.", tableInfo.getName());
                 }
                 registerTableCache.put(tableInfo.getName(), regTable);
 
-                URL sourceTablePathUrl = PluginUtil.buildSourceAndSinkPathByLoadMode(
-                        tableInfo.getType()
-                        , AbstractSourceTableInfo.SOURCE_SUFFIX
-                        , localSqlPluginPath
-                        , remoteSqlPluginPath
-                        , pluginLoadMode);
+                URL sourceTablePathUrl = PluginUtil.buildSourceAndSinkPathByLoadMode(tableInfo.getType(), AbstractSourceTableInfo.SOURCE_SUFFIX, localSqlPluginPath, remoteSqlPluginPath, pluginLoadMode);
                 pluginClassPathSets.add(sourceTablePathUrl);
             } else if (tableInfo instanceof AbstractTargetTableInfo) {
                 TableSink tableSink = StreamSinkFactory.getTableSink((AbstractTargetTableInfo) tableInfo, localSqlPluginPath, pluginLoadMode);
@@ -459,33 +401,17 @@ public class ExecuteProcessHelper {
                 if (tableInfo.getType().startsWith("kafka")) {
                     tableEnv.registerTableSink(tableInfo.getName(), tableSink);
                 } else {
-                    TypeInformation[] flinkTypes = DataTypeUtils.transformTypes(tableInfo.getFieldClasses());
+                    TypeInformation[] flinkTypes = FunctionManager.transformTypes(tableInfo.getFieldClasses());
                     tableEnv.registerTableSink(tableInfo.getName(), tableInfo.getFields(), flinkTypes, tableSink);
                 }
 
-                URL sinkTablePathUrl = PluginUtil.buildSourceAndSinkPathByLoadMode(
-                        tableInfo.getType()
-                        , AbstractTargetTableInfo.TARGET_SUFFIX
-                        , localSqlPluginPath
-                        , remoteSqlPluginPath
-                        , pluginLoadMode);
+                URL sinkTablePathUrl = PluginUtil.buildSourceAndSinkPathByLoadMode(tableInfo.getType(), AbstractTargetTableInfo.TARGET_SUFFIX, localSqlPluginPath, remoteSqlPluginPath, pluginLoadMode);
                 pluginClassPathSets.add(sinkTablePathUrl);
             } else if (tableInfo instanceof AbstractSideTableInfo) {
                 String sideOperator = ECacheType.ALL.name().equalsIgnoreCase(((AbstractSideTableInfo) tableInfo).getCacheType()) ? "all" : "async";
                 sideTableMap.put(tableInfo.getName(), (AbstractSideTableInfo) tableInfo);
 
-                if (planner.equalsIgnoreCase(PlannerType.FLINK.name())) {
-                    TableSource tableSource = LookupTableSourceFactory.createLookupTableSource((AbstractSideTableInfo) tableInfo, localSqlPluginPath, pluginLoadMode);
-                    tableEnv.registerTableSource(tableInfo.getName(), tableSource);
-                }
-
-                URL sideTablePathUrl = PluginUtil.buildSidePathByLoadMode(
-                        tableInfo.getType()
-                        , sideOperator
-                        , AbstractSideTableInfo.TARGET_SUFFIX
-                        , localSqlPluginPath
-                        , remoteSqlPluginPath
-                        , pluginLoadMode);
+                URL sideTablePathUrl = PluginUtil.buildSidePathByLoadMode(tableInfo.getType(), sideOperator, AbstractSideTableInfo.TARGET_SUFFIX, localSqlPluginPath, remoteSqlPluginPath, pluginLoadMode);
                 pluginClassPathSets.add(sideTablePathUrl);
             } else {
                 throw new RuntimeException("not support table type:" + tableInfo.getType());
@@ -494,6 +420,11 @@ public class ExecuteProcessHelper {
         if (localSqlPluginPath == null || localSqlPluginPath.isEmpty()) {
             return Sets.newHashSet();
         }
+        pluginClassPathSets.add(PluginUtil.buildDirtyPluginUrl(
+                String.valueOf(dirtyProperties.get(DirtyKeys.PLUGIN_TYPE_STR)),
+                String.valueOf(dirtyProperties.get(DirtyKeys.PLUGIN_PATH_STR)),
+                String.valueOf(dirtyProperties.get(DirtyKeys.PLUGIN_LOAD_MODE_STR))
+        ));
         return pluginClassPathSets;
     }
 
@@ -546,5 +477,11 @@ public class ExecuteProcessHelper {
         if (!zones.contains(timeZone)) {
             throw new IllegalArgumentException(String.format(" timezone of %s is Incorrect!", timeZone));
         }
+    }
+
+    private static TypeInformation<?>[] fromDataTypeToLegacyInfo(DataType[] dataType) {
+        return Stream.of(dataType)
+                .map(TypeInfoDataTypeConverter::toLegacyTypeInfo)
+                .toArray(TypeInformation[]::new);
     }
 }
