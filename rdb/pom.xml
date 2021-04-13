@@ -20,10 +20,17 @@
     <packaging>pom</packaging>
 
     <properties>
+        <junit.version>3.8.1</junit.version>
         <sql.core.version>1.0-SNAPSHOT</sql.core.version>
     </properties>
 
     <dependencies>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>${junit.version}</version>
+            <scope>test</scope>
+        </dependency>
 
         <dependency>
             <groupId>com.dtstack.flink</groupId>
@@ -31,32 +38,7 @@
             <version>${sql.core.version}</version>
             <scope>provided</scope>
         </dependency>
-
-        <!--    test dependencies   -->
-
-        <dependency>
-            <groupId>com.dtstack.flink</groupId>
-            <artifactId>sql.core</artifactId>
-            <version>${sql.core.version}</version>
-            <type>test-jar</type>
-            <scope>test</scope>
-        </dependency>
     </dependencies>
 
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-jar-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>test-jar</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-        </plugins>
-    </build>
 
 </project>
