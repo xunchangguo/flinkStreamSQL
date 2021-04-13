@@ -89,8 +89,6 @@ import java.util.*;
 
 import static com.dtstack.flink.sql.constrant.ConfigConstrant.SAMPLE_INTERVAL_COUNT;
 
-import static com.dtstack.flink.sql.constrant.ConfigConstrant.SAMPLE_INTERVAL_COUNT;
-
 /**
  * 任务执行时的流程方法
  * Date: 2020/2/17
