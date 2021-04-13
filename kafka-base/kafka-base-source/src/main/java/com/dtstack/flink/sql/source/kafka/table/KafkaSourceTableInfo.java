@@ -63,6 +63,8 @@ public class KafkaSourceTableInfo extends AbstractSourceTableInfo {
 
     private String groupId;
 
+    private boolean hasSetGroupId = false;
+
     private String offsetReset;
 
     private Boolean topicIsPattern = false;
@@ -171,7 +173,15 @@ public class KafkaSourceTableInfo extends AbstractSourceTableInfo {
         this.timestampOffset = timestampOffset;
     }
 
-	@Override
+    public boolean isHasSetGroupId() {
+        return hasSetGroupId;
+    }
+
+    public void setHasSetGroupId(boolean hasSetGroupId) {
+        this.hasSetGroupId = hasSetGroupId;
+    }
+
+    @Override
 	public boolean check() {
 		Preconditions.checkNotNull(getType(), "kafka of type is required");
 		Preconditions.checkNotNull(bootstrapServers, "kafka of bootstrapServers is required");

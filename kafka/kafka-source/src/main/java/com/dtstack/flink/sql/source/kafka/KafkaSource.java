@@ -51,7 +51,7 @@ public class KafkaSource extends AbstractKafkaSource {
         DataStreamSource kafkaSource = env.addSource(kafkaSrc, sourceOperatorName, typeInformation);
 
         setParallelism(kafkaSourceTableInfo.getParallelism(), kafkaSource);
-        if (StringUtils.isNotEmpty(kafkaSourceTableInfo.getGroupId())){
+        if (kafkaSourceTableInfo.isHasSetGroupId()){
             kafkaSrc.setStartFromGroupOffsets();
         } else {
             setStartPosition(kafkaSourceTableInfo.getOffsetReset(), topicName, kafkaSrc, () -> kafkaSrc.setStartFromTimestamp(kafkaSourceTableInfo.getTimestampOffset()));
