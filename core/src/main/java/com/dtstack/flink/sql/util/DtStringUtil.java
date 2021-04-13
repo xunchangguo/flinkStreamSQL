@@ -21,15 +21,18 @@
 package com.dtstack.flink.sql.util;
 
 import com.dtstack.flink.sql.enums.ColumnType;
-import org.apache.commons.lang3.StringUtils;
 import com.google.common.base.Strings;
 import com.google.common.collect.Maps;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import java.sql.Timestamp;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.flink.util.Preconditions;
+
 import java.math.BigDecimal;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -44,7 +47,7 @@ public class DtStringUtil {
 
     private static final Pattern NO_VERSION_PATTERN = Pattern.compile("([a-zA-Z]+).*");
 
-    private static ObjectMapper objectMapper = new ObjectMapper();
+    private static final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
      * Split the specified string delimiter --- ignored quotes delimiter
@@ -241,6 +244,9 @@ public class DtStringUtil {
             case DATE:
                 result = DateUtil.dateToString((java.util.Date)column);
                 break;
+            case TIME:
+                result = DateUtil.getTimeFromStr(String.valueOf(column));
+                break;
             case TIMESTAMP:
                 result = DateUtil.timestampToString((java.util.Date)column);
                 break;
@@ -250,10 +256,12 @@ public class DtStringUtil {
         return result.toString();
     }
 
-    public static String getPluginTypeWithoutVersion(String engineType){
+    public static String getPluginTypeWithoutVersion(String engineType) {
+        Preconditions.checkNotNull(engineType, "type can't be null!");
 
         Matcher matcher = NO_VERSION_PATTERN.matcher(engineType);
-        if(!matcher.find()){
+
+        if (!matcher.find()) {
             return engineType;
         }
 
@@ -410,5 +418,15 @@ public class DtStringUtil {
     public static String removeStartAndEndQuota(String str) {
         String removeStart = StringUtils.removeStart(str, "'");
         return StringUtils.removeEnd(removeStart, "'");
+    }
+
+    /**
+     * 判断当前对象是null 还是空格
+     *
+     * @param obj 需要判断的对象
+     * @return 返回true 如果对象是空格或者为null
+     */
+    public static boolean isEmptyOrNull(Object obj) {
+        return Objects.isNull(obj) || obj.toString().isEmpty();
     }
 }

@@ -46,7 +46,10 @@ import org.apache.flink.table.dataformat.BaseRow;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.regex.Matcher;
+
 /**
  * @author yanxi
  */
@@ -66,7 +69,7 @@ public class RedisAsyncReqRow extends BaseAsyncReqRow {
 
     private RedisSideTableInfo redisSideTableInfo;
 
-    private RedisSideReqRow redisSideReqRow;
+    private final RedisSideReqRow redisSideReqRow;
 
     public RedisAsyncReqRow(RowTypeInfo rowTypeInfo, JoinInfo joinInfo, List<FieldInfo> outFieldInfoList, AbstractSideTableInfo sideTableInfo) {
         super(new RedisAsyncSideInfo(rowTypeInfo, joinInfo, outFieldInfoList, sideTableInfo));
@@ -92,17 +95,40 @@ public class RedisAsyncReqRow extends BaseAsyncReqRow {
             case STANDALONE:
                 RedisURI redisURI = RedisURI.create("redis://" + url);
                 redisURI.setPassword(password);
-                redisURI.setDatabase(Integer.valueOf(database));
+                redisURI.setDatabase(Integer.parseInt(database));
                 redisClient = RedisClient.create(redisURI);
                 connection = redisClient.connect();
                 async = connection.async();
                 break;
             case SENTINEL:
-                RedisURI redisSentinelURI = RedisURI.create("redis-sentinel://" + url);
-                redisSentinelURI.setPassword(password);
-                redisSentinelURI.setDatabase(Integer.valueOf(database));
-                redisSentinelURI.setSentinelMasterId(redisSideTableInfo.getMasterName());
-                redisClient = RedisClient.create(redisSentinelURI);
+                String[] urlSplit = StringUtils.split(url, ",");
+                RedisURI.Builder builder = null;
+                for (String item : urlSplit) {
+                    Matcher mather = RedisSideReqRow.HOST_PORT_PATTERN.matcher(item);
+                    if (mather.find()) {
+                        builder = buildSentinelUri(
+                                mather.group("host"),
+                                mather.group("port"),
+                                builder
+                        );
+                    } else {
+                        throw new IllegalArgumentException(
+                                String.format("Illegal format with redis url [%s]", item)
+                        );
+                    }
+                }
+
+                if (Objects.nonNull(builder)) {
+                    builder
+                            .withPassword(tableInfo.getPassword())
+                            .withDatabase(Integer.parseInt(tableInfo.getDatabase()))
+                            .withSentinelMasterId(tableInfo.getMasterName());
+                } else {
+                    throw new NullPointerException("build redis uri error!");
+                }
+
+                RedisURI uri = builder.build();
+                redisClient = RedisClient.create(uri);
                 connection = redisClient.connect();
                 async = connection.async();
                 break;
@@ -117,6 +143,18 @@ public class RedisAsyncReqRow extends BaseAsyncReqRow {
         }
     }
 
+    private RedisURI.Builder buildSentinelUri(
+            String host,
+            String port,
+            RedisURI.Builder builder) {
+        if (Objects.nonNull(builder)) {
+            builder.withSentinel(host, Integer.parseInt(port));
+        } else {
+            builder = RedisURI.Builder.sentinel(host, Integer.parseInt(port));
+        }
+        return builder;
+    }
+
     @Override
     public BaseRow fillData(BaseRow input, Object sideInput) {
         return redisSideReqRow.fillData(input, sideInput);
@@ -129,21 +167,18 @@ public class RedisAsyncReqRow extends BaseAsyncReqRow {
             return;
         }
         RedisFuture<Map<String, String>> future = ((RedisHashAsyncCommands) async).hgetall(key);
-        future.thenAccept(new Consumer<Map<String, String>>() {
-            @Override
-            public void accept(Map<String, String> values) {
-                if (MapUtils.isNotEmpty(values)) {
-                    try {
-                        BaseRow row = fillData(input, values);
-                        dealCacheData(key,CacheObj.buildCacheObj(ECacheContentType.SingleLine, row));
-                        RowDataComplete.completeBaseRow(resultFuture, row);
-                    } catch (Exception e) {
-                        dealFillDataError(input, resultFuture, e);
-                    }
-                } else {
-                    dealMissKey(input, resultFuture);
-                    dealCacheData(key, CacheMissVal.getMissKeyObj());
+        future.thenAccept(values -> {
+            if (MapUtils.isNotEmpty(values)) {
+                try {
+                    BaseRow row = fillData(input, values);
+                    dealCacheData(key,CacheObj.buildCacheObj(ECacheContentType.SingleLine, row));
+                    RowDataComplete.completeBaseRow(resultFuture, row);
+                } catch (Exception e) {
+                    dealFillDataError(input, resultFuture, e);
                 }
+            } else {
+                dealMissKey(input, resultFuture);
+                dealCacheData(key, CacheMissVal.getMissKeyObj());
             }
         });
     }

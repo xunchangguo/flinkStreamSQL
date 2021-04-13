@@ -1,5 +1,7 @@
 package com.dtstack.flink.sql.exception;
 
+import org.apache.flink.runtime.execution.SuppressRestartsException;
+
 import java.util.Objects;
 
 /**

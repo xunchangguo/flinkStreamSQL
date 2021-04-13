@@ -18,7 +18,9 @@
         <module>mysql</module>
         <module>hbase</module>
         <module>elasticsearch5</module>
+        <module>elasticsearch5-xh</module>
         <module>elasticsearch6</module>
+        <module>elasticsearch7</module>
         <module>mongo</module>
         <module>redis5</module>
         <module>launcher</module>
@@ -37,7 +39,12 @@
         <module>oceanbase</module>
         <module>tidb</module>
         <module>kingbase</module>
-<!--        <module>aws</module>-->
+        <module>aws</module>
+        <module>file</module>
+        <module>http</module>
+
+        <!-- 脏数据插件 -->
+        <module>dirtyData</module>
 <!--        <module>localTest</module>-->
 
     </modules>
@@ -90,6 +97,11 @@
             <classifier>runtime</classifier>
             <scope>test</scope>
             <version>${jacoco.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.alibaba</groupId>
+            <artifactId>fastjson</artifactId>
+            <version>1.2.70</version>
         </dependency>
     </dependencies>
 

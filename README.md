@@ -31,7 +31,6 @@ FlinkStreamSQL
 
 ## 目录
 
-[ 1.0 变更记录](docs/changelog.md)  
 [ 1.1 demo](docs/demo.md)  
 [ 1.2 快速开始](docs/quickStart.md)  
 [ 1.3 参数配置](docs/config.md)  
@@ -41,6 +40,8 @@ FlinkStreamSQL
 [ 1.7 自定义视图](docs/createView.md)
 
 ## 如何贡献FlinkStreamSQL
+
+[pr规范](docs/pr.md)
 
 ## License
 FlinkStreamSQL is under the Apache 2.0 license. See the [LICENSE](http://www.apache.org/licenses/LICENSE-2.0) file for details.    
